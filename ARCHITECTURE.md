@@ -1,6 +1,6 @@
-# Campus AI Agent - Architecture Design
+- Campus AI Agent - Architecture Design
 
-## Overview
+-- Overview
 
 This document describes the architecture for an AI agent that helps students, faculty and staff on a college campus. The agent handles four main things:
 
@@ -15,7 +15,7 @@ s, locations, rules)
 
 ---
 
-## High-Level Architecture
+-- High-Level Architecture
 
 The system has three main layers:
 
@@ -44,20 +44,20 @@ The user sends a message through a web chat or mobile app. FastAPI receives it, 
 
 ---
 
-## Internal Components
+-- Internal Components
 
-### 1. Intent Detection
+--- 1. Intent Detection
 
 The LLM reads the user's message and figures out which category it falls into:
 
-- **EVENT_QUERY** - "what events are happening this Friday?", "any workshops this week?"
-- **ROOM_LAB_AVAILABILITY** - "is room 301 free at 3pm?", "lab schedule for tomorrow"
-- **FACILITY_INFO** - "library timings", "where is the seminar hall?"
-- **BOOKING_REQUEST** - "book room 301 for Monday 2pm", "register for the hackathon"
+- EVENT_QUERY - "what events are happening this Friday?", "any workshops this week?"
+- ROOM_LAB_AVAILABILITY - "is room 301 free at 3pm?", "lab schedule for tomorrow"
+- FACILITY_INFO - "library timings", "where is the seminar hall?"
+- BOOKING_REQUEST - "book room 301 for Monday 2pm", "register for the hackathon"
 
 This is done through the LLM's system prompt with clear definitions and a few examples. We don't need a separate classifier model for this - the LLM handles it well enough as part of its reasoning.
 
-### 2. Router (Decision Point)
+--- 2. Router (Decision Point)
 
 Once the intent is known, the agent picks which tool to call:
 
@@ -66,17 +66,17 @@ Once the intent is known, the agent picks which tool to call:
 - Facility info --> facility_tool
 - Booking request --> room_lab_tool first (to check availability), then constraint_checker, then confirmation, then booking_tool
 
-### 3. Tools
+--- 3. Tools
 
 These are simple Python functions that talk to the database:
 
-- **events_tool** - queries the events table by date, category, or keyword
-- **room_lab_tool** - checks the room/lab schedule, returns free slots
-- **facility_tool** - looks up facility details (location, hours, contact info)
-- **constraint_checker** - validates booking rules before allowing a booking
-- **booking_tool** - writes a new booking record to the database (only runs after user confirms)
+- events_tool - queries the events table by date, category, or keyword
+- room_lab_tool - checks the room/lab schedule, returns free slots
+- facility_tool - looks up facility details (location, hours, contact info)
+- constraint_checker - validates booking rules before allowing a booking
+- booking_tool - writes a new booking record to the database (only runs after user confirms)
 
-### 4. Constraint Checker
+--- 4. Constraint Checker
 
 Before any booking goes through, we check:
 
@@ -87,7 +87,7 @@ Before any booking goes through, we check:
 
 If something fails, the agent explains why and suggests an alternative.
 
-### 5. Confirmation Gate
+--- 5. Confirmation Gate
 
 This is important - the agent never books anything without asking the user first. The flow looks like:
 
@@ -99,23 +99,23 @@ Agent: [executes booking] "Done! Booking confirmed. Ref: #BK-4821"
 
 This isn't just the LLM being polite - there's a hard-coded flag (user_confirmed) that the booking_tool checks before executing. The tool literally won't run without it. This prevents accidental bookings.
 
-### 6. Response Generator
+--- 6. Response Generator
 
 The LLM takes raw database output (JSON) and turns it into a natural response. For example, `{"room": "301", "status": "available", "slot": "14:00-16:00"}` becomes "Room 301 is free from 2 to 4 PM. Want me to book it?"
 
 ---
 
-## End-to-End Flow (Booking Example)
+-- End-to-End Flow (Booking Example)
 
 Let's walk through what happens when a user says "Book Physics Lab 2 for tomorrow 3-5 PM":
 
-**Step 1 - Intent Detection**
+--Step 1 - Intent Detection
 The LLM reads the message and identifies it as a BOOKING_REQUEST. It also extracts: room = "Physics Lab 2", date = tomorrow, time = 3-5 PM.
 
-**Step 2 - Availability Check**
+--Step 2 - Availability Check
 The agent calls room_lab_tool, which queries the schedule database. Result: the lab is free during that slot.
 
-**Step 3 - Constraint Validation**
+--Step 3 - Constraint Validation
 The constraint_checker runs:
 
 - Operating hours? Yes, lab is open till 6 PM.
@@ -124,20 +124,20 @@ The constraint_checker runs:
 - Any maintenance? No.
   All checks pass.
 
-**Step 4 - User Confirmation**
+--Step 4 - User Confirmation
 Agent asks: "Physics Lab 2 is available tomorrow 3-5 PM. Confirm booking?"
 User replies: "Yes"
 The confirmed flag is set to true.
 
-**Step 5 - Execute Booking**
+--Step 5 - Execute Booking
 booking_tool writes the record to the database and returns a reference number.
 
-**Step 6 - Response**
+--Step 6 - Response
 Agent replies: "Booked! Physics Lab 2, tomorrow 3-5 PM. Reference: #BK-4821."
 
 ---
 
-## Tech Stack
+-- Tech Stack
 
 | Component       | Technology                         | Why                                                                                             |
 | --------------- | ---------------------------------- | ----------------------------------------------------------------------------------------------- |
@@ -154,7 +154,7 @@ We don't need a separate NLP model for entity extraction - GPT-4o handles extrac
 
 ---
 
-## Flow Diagram
+-- Flow Diagram
 
 ```
         User Query
@@ -191,14 +191,14 @@ We don't need a separate NLP model for entity extraction - GPT-4o handles extrac
 
 ---
 
-## Key Design Decisions
+-- Key Design Decisions
 
-- **Single LLM for everything** - Instead of having separate models for intent classification, entity extraction etc., we use one LLM (GPT-4o) with a good system prompt. Simpler to maintain and works well for this scope.
+- Single LLM for everything - Instead of having separate models for intent classification, entity extraction etc., we use one LLM (GPT-4o) with a good system prompt. Simpler to maintain and works well for this scope.
 
-- **Hard-coded confirmation gate** - The booking tool physically cannot run without the confirmed flag being true. This is a programmatic check, not just the LLM being careful. Safety first.
+- Hard-coded confirmation gate - The booking tool physically cannot run without the confirmed flag being true. This is a programmatic check, not just the LLM being careful. Safety first.
 
-- **Tools are thin wrappers** - Each tool is just a function that builds a SQL query, runs it, and returns the result as JSON. Easy to test, easy to replace.
+- Tools are thin wrappers - Each tool is just a function that builds a SQL query, runs it, and returns the result as JSON. Easy to test, easy to replace.
 
-- **No vector database** - Our data is all structured (event tables, room schedules). There's no need for semantic search here, so adding a vector DB would just be unnecessary complexity.
+- No vector database - Our data is all structured (event tables, room schedules). There's no need for semantic search here, so adding a vector DB would just be unnecessary complexity.
 
-- **No fine-tuning** - The domain is small enough that prompt engineering with a few examples is enough. Fine-tuning would be overkill for a campus assistant.
+- No fine-tuning - The domain is small enough that prompt engineering with a few examples is enough. Fine-tuning would be overkill for a campus assistant.
